@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +15,18 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
+
+// Rate limiting - limit requests to prevent abuse
+const limiter = rateLimit({
+  windowMs: process.env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000, // Set in .env
+  max: process.env.RATE_LIMIT, // Set in .env
+  message: { error: 'Too many requests, please try again later.' },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply rate limiting to the forward endpoint
+app.use('/forward', limiter);
 
 // Main route that accepts metadata and forwards to another service
 app.post('/forward', async (req, res) => {
