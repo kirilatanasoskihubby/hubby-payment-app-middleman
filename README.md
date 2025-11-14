@@ -9,6 +9,8 @@ A simple Node.js + Express middleman service that accepts metadata and forwards 
 - Waits for and returns the response from the target service
 - Error handling for various failure scenarios
 - Health check endpoint
+- Rate limiting (100 requests per minute by default, Stripe-like)
+- Request size limit (1MB by default, following industry standards)
 
 ## Installation
 
@@ -23,10 +25,14 @@ Create a `.env` file in the root directory:
 ```
 PORT=3000
 TARGET_SERVICE_URL=http://localhost:4000
+RATE_LIMIT_WINDOW_MINUTES=1
+RATE_LIMIT=100
 ```
 
 - `PORT`: The port this middleman service runs on (default: 3000)
 - `TARGET_SERVICE_URL`: The URL of the target service to forward requests to
+- `RATE_LIMIT_WINDOW_MINUTES`: Time window for rate limiting in minutes (default: 1)
+- `RATE_LIMIT`: Maximum requests allowed per time window (default: 100)
 
 ## Usage
 
@@ -40,6 +46,12 @@ npm start
 
 ```bash
 npm run dev
+```
+
+### Run tests
+
+```bash
+./run-tests.sh
 ```
 
 ## API Endpoints

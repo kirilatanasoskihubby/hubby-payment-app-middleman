@@ -7,8 +7,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const TARGET_SERVICE_URL = process.env.TARGET_SERVICE_URL;
 
-// Middleware to parse JSON bodies
-app.use(express.json());
+// Trust proxy - needed for rate limiting when behind proxies/load balancers
+app.set('trust proxy', 1);
+
+// Middleware to parse JSON bodies with size limit to prevent abuse
+// Set to 1MB to match Stripe's practical limits (they don't enforce a strict limit)
+app.use(express.json({ limit: '1mb' }));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -17,9 +21,10 @@ app.use((req, res, next) => {
 });
 
 // Rate limiting - limit requests to prevent abuse
+// Stripe allows ~100 requests per second, we'll set 100 requests per minute as a reasonable limit
 const limiter = rateLimit({
-  windowMs: process.env.RATE_LIMIT_WINDOW_MINUTES * 60 * 1000, // Set in .env
-  max: process.env.RATE_LIMIT, // Set in .env
+  windowMs: (parseInt(process.env.RATE_LIMIT_WINDOW_MINUTES) || 1) * 60 * 1000, // Default: 1 minute
+  max: parseInt(process.env.RATE_LIMIT) || 100, // Default: 100 requests per minute (Stripe-like)
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -77,6 +82,17 @@ app.post('/forward', async (req, res) => {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Error handler for payload too large (must be after routes)
+app.use((err, req, res, next) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({
+      error: 'Payload too large',
+      message: 'Request body exceeds the 1MB limit',
+    });
+  }
+  next(err);
 });
 
 // Start the server
